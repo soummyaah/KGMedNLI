@@ -1,0 +1,27 @@
+{
+    "train_data": "../../data/preprocessed/MedNLI/train_data.pkl",
+    "valid_data": "../../data/preprocessed/MedNLI/dev_data.pkl",
+    "test_data": "../../data/preprocessed/MedNLI/test_data.pkl",
+    "train_embeddings": "../../data/preprocessed/MedNLI/train_elmo.pkl",
+    "valid_embeddings": "../../data/preprocessed/MedNLI/dev_elmo.pkl",
+    "test_embeddings": "../../data/preprocessed/MedNLI/test_elmo.pkl",
+    "target_dir": "../../data/checkpoints/MedNLI-Elmo/trial",
+    "dataset": "elmo",
+    "distmult": 1,
+    "distmultPath": "../../data/dataset/glove_style_embedding.vec",
+    "distmultEmbeddingDim": 100,
+
+    "embedding_dim": 1024,
+    "hidden_size": 500,
+    "dropout": 0.3,
+    "num_classes": 3,
+    "epochs": 64,
+    "batch_size": 16,
+    "lr": 0.001,
+    "patience": 5,
+    "max_gradient_norm": 10.0,
+    "testing": false,
+    "multipassiterations": 1,
+    "lstm": true,
+    "weightedattention": false
+}
