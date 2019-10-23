@@ -143,7 +143,7 @@ class ESIM(nn.Module):
                  distmult=0,
                  distmultPath=None,
                  distmultEmbeddingDim=None,
-                 dropout=0.0,
+                 dropout=0.5,
                  num_classes=3,
                  multipassiterations=1,
                  lstm=True,

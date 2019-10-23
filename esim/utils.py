@@ -166,4 +166,4 @@ def correct_predictions(output_probabilities, targets):
     """
     _, out_classes = output_probabilities.max(dim=1)
     correct = (out_classes == targets).sum()
-    return correct.item()
+    return correct.item(), out_classes, targets
