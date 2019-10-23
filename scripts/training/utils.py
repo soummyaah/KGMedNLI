@@ -4,19 +4,23 @@ Utility functions for training and validating models.
 
 import time
 import torch
+import gc
 
 import torch.nn as nn
 
 from tqdm import tqdm
-from esim.utils import correct_predictions
-
+from esim.utils import correct_predictions, get_tensor_of_tensor
 
 def train(model,
           dataloader,
+          embeddings,
+          embeddingString,
           optimizer,
           criterion,
           epoch_number,
-          max_gradient_norm):
+          batch_size,
+          max_gradient_norm,
+          testing=True):
     """
     Train a model for one epoch on some input data with a given optimizer and
     criterion.
@@ -44,45 +48,57 @@ def train(model,
     correct_preds = 0
 
     tqdm_batch_iterator = tqdm(dataloader)
+    count = 0
     for batch_index, batch in enumerate(tqdm_batch_iterator):
         batch_start = time.time()
 
         # Move input and output data to the GPU if it is used.
-        premises = batch["premise"].to(device)
-        premises_lengths = batch["premise_length"].to(device)
-        hypotheses = batch["hypothesis"].to(device)
-        hypotheses_lengths = batch["hypothesis_length"].to(device)
-        labels = batch["label"].to(device)
-
+        premises = batch["premises"]  # .to(device)
+        premises_lengths = torch.LongTensor(batch["premises_lengths"]).to(device)
+        hypotheses = batch["hypotheses"]  # .to(device)
+        hypotheses_lengths = torch.LongTensor(batch["hypotheses_lengths"]).to(device)
+        labels = torch.LongTensor(batch["labels"]).to(device)
+        premise_polarities = get_tensor_of_tensor(batch["premise_polarities"], batch['max_premise_length']).to(device)
+        hypothesis_polarities = get_tensor_of_tensor(batch["hypothesis_polarities"], batch['max_hypothesis_length']).to(device)
         optimizer.zero_grad()
+        batch_embeddings = embeddings.get_batch(count)
 
-        logits, probs = model(premises,
+        logits, probs, _ = model(premises,
                               premises_lengths,
                               hypotheses,
-                              hypotheses_lengths)
+                              hypotheses_lengths,
+                              premise_polarities,
+                              hypothesis_polarities,
+                              batch_embeddings,
+                              embeddingString,
+                              batch['max_premise_length'],
+                              batch['max_hypothesis_length'])
         loss = criterion(logits, labels)
         loss.backward()
 
         nn.utils.clip_grad_norm_(model.parameters(), max_gradient_norm)
         optimizer.step()
 
+        count = count + batch_size
+
         batch_time_avg += time.time() - batch_start
         running_loss += loss.item()
-        correct_preds += correct_predictions(probs, labels)
-
+        correct_pred, out_class = correct_predictions(probs, labels)
+        correct_preds += correct_pred
         description = "Avg. batch proc. time: {:.4f}s, loss: {:.4f}"\
                       .format(batch_time_avg/(batch_index+1),
                               running_loss/(batch_index+1))
         tqdm_batch_iterator.set_description(description)
 
+        if testing: break
     epoch_time = time.time() - epoch_start
     epoch_loss = running_loss / len(dataloader)
-    epoch_accuracy = correct_preds / len(dataloader.dataset)
+    epoch_accuracy = correct_preds / len(dataloader)
 
     return epoch_time, epoch_loss, epoch_accuracy
 
 
-def validate(model, dataloader, criterion):
+def validate(model, dataloader, embeddings, embeddingString, criterion, batch_size, testing):
     """
     Compute the loss and accuracy of a model on some validation dataset.
 
@@ -103,32 +119,49 @@ def validate(model, dataloader, criterion):
     # Switch to evaluate mode.
     model.eval()
     device = model.device
-
     epoch_start = time.time()
     running_loss = 0.0
     running_accuracy = 0.0
-
     # Deactivate autograd for evaluation.
     with torch.no_grad():
+        count = 0
         for batch in dataloader:
             # Move input and output data to the GPU if one is used.
-            premises = batch["premise"].to(device)
-            premises_lengths = batch["premise_length"].to(device)
-            hypotheses = batch["hypothesis"].to(device)
-            hypotheses_lengths = batch["hypothesis_length"].to(device)
-            labels = batch["label"].to(device)
+            premises = batch["premises"]#.to(device)
+            premises_lengths = torch.LongTensor(batch["premises_lengths"]).to(device)
+            hypotheses = batch["hypotheses"]#.to(device)
+            hypotheses_lengths = torch.LongTensor(batch["hypotheses_lengths"]).to(device)
+            labels = torch.LongTensor(batch["labels"]).to(device)
+            premise_polarities = get_tensor_of_tensor(batch["premise_polarities"], batch['max_premise_length']).to(
+                device)
+            hypothesis_polarities = get_tensor_of_tensor(batch["hypothesis_polarities"],
+                                                         batch['max_hypothesis_length']).to(device)
+            batch_embeddings = embeddings.get_batch(count)
 
-            logits, probs = model(premises,
+            logits, probs, _ = model(premises,
                                   premises_lengths,
                                   hypotheses,
-                                  hypotheses_lengths)
+                                  hypotheses_lengths,
+                                  premise_polarities,
+                                  hypothesis_polarities,
+                                  batch_embeddings,
+                                  embeddingString,
+                                  batch['max_premise_length'],
+                                  batch['max_hypothesis_length'])
+            # return logits, probs
+            # print(premises_lengths)
+            # premises_mask, embedded_premises, encoded_premises, premises = model(
+            #     premises, premises_lengths, hypotheses, hypotheses_lengths)
+            # return premises_mask, embedded_premises, encoded_premises, premises
             loss = criterion(logits, labels)
-
             running_loss += loss.item()
-            running_accuracy += correct_predictions(probs, labels)
+            accuracy, out_class = correct_predictions(probs, labels)
+            # running_accuracy += correct_predictions(probs, labels)
+            running_accuracy += accuracy
+            count = count + batch_size
+            if testing: break
 
     epoch_time = time.time() - epoch_start
     epoch_loss = running_loss / len(dataloader)
-    epoch_accuracy = running_accuracy / (len(dataloader.dataset))
-
+    epoch_accuracy = running_accuracy / (len(dataloader))
     return epoch_time, epoch_loss, epoch_accuracy
