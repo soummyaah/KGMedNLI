@@ -1,6 +1,7 @@
 """
 Definition of custom layers for the ESIM model.
 """
+# Modified by Soumya Sharma, 2019.
 # Aurelien Coet, 2018.
 
 import torch.nn as nn
@@ -251,4 +252,4 @@ class WeightedAttention(nn.Module):
                                            hyp_prem_attn,
                                            hypothesis_mask)
 
-        return attended_premises, attended_hypotheses
+        return attended_premises, attended_hypotheses, similarity_matrix
