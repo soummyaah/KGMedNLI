@@ -10,4 +10,3 @@ Code added.
 TODO:
 
 [] Update README
-[] Check code uploaded.
